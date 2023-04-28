@@ -1,0 +1,215 @@
+SELECT *
+FROM listings
+
+--EDA
+
+--Finding the number if Airbnbs in Amsterdam
+SELECT COUNT(DISTINCT HOST_ID) FROM listings
+--5987 airnbnbs
+
+--Finding the number of listings in Amsterdam
+SELECT COUNT(DISTINCT ID) FROM listings
+--6998 listings
+
+--Finding the number of hosts with multiple listings
+SELECT COUNT(DISTINCT host_id) AS total_hosts_with_multiple_listings
+FROM listings
+WHERE host_id IN (
+  SELECT host_id
+  FROM listings
+  GROUP BY host_id
+  HAVING COUNT(*) > 1
+)
+--501 hosts has multiple listings
+
+SELECT 
+  COUNT(DISTINCT host_id) * 100.0 / (SELECT COUNT(DISTINCT host_id) FROM listings) AS percentage_hosts_with_multiple_listings
+FROM listings
+WHERE host_id IN (
+  SELECT host_id
+  FROM listings
+  GROUP BY host_id
+  HAVING COUNT(*) > 1
+  )
+  --8.4% hosts has multiple listings
+
+SELECT 
+  COUNT(DISTINCT host_id) * 100.0 / (SELECT COUNT(DISTINCT host_id) FROM listings) AS percentage_hosts_with_one_listing
+FROM (
+  SELECT host_id, COUNT(*) AS num_listings
+  FROM listings
+  GROUP BY host_id
+  HAVING COUNT(*) = 1) AS t;
+
+  --91.6% has only one listing
+
+SELECT AVG(CAST(price AS numeric)) as average_price
+FROM listings
+
+--Average price of an airbnb in amsterdam is 221.05 
+
+--Finding the number of listings and average price in each neighbourhood
+
+SELECT neighbourhood_cleansed, 
+       COUNT(id) AS no_listings, 
+       AVG(CAST(price AS numeric)) AS average_price 
+FROM listings 
+GROUP BY neighbourhood_cleansed 
+ORDER BY AVG(CAST(price AS numeric)) DESC
+
+
+ 
+--Finding the average price by room type 
+SELECT
+  room_type,
+  COUNT(id) as no_listings,
+   AVG(CAST(price AS numeric)) AS average_price 
+FROM
+  listings
+GROUP BY
+  room_type
+ORDER BY
+    average_price DESC
+
+--Renting an entire home is the most expensive and shared rooms are the cheapest.
+
+--Finding the price per bed for each neighbourhood 
+
+SELECT
+  neighbourhood_cleansed,
+  SUM(CAST(price AS numeric))/ SUM(beds) as price_per_bed
+FROM
+  listings
+GROUP BY
+  neighbourhood_cleansed
+ORDER BY
+  price_per_bed DESC
+
+ --As expected airbnbs in Popular neighbourhoods like Centrum, De pijp charges more as compared to other lesser known neighbourhoods.
+
+
+SELECT neighbourhood, availability_30 FROM listings
+
+SELECT id, name, 30 - availability_30 AS booked_out_30 , 
+CAST(price AS numeric)*(30 - availability_30) / beds AS proj_rev_30
+FROM listings ORDER BY proj_rev_30 DESC
+
+--Finding the neighbourhoods with the highest revenue for the next 30 days based on the availability
+SELECT name,
+  neighbourhood,room_type,
+  SUM(CAST(price AS NUMERIC)* (30 -availability_30)) AS booked_out_30
+FROM 
+  listings
+GROUP BY
+  name,
+  neighbourhood,
+  room_type
+ORDER BY
+  booked_out_30 DESC
+
+ --It is clear that Entire home/ apartment is in high demand.
+ --It seems like not many are interested in shared room regardless of the location.
+ --It is seen that Concept villa is the one with highest revenue.
+
+SELECT DISTINCT(host_is_superhost) FROM listings
+
+--changing the values to make it easy to understand
+
+UPDATE listings
+SET host_is_superhost = 
+  CASE 
+    WHEN host_is_superhost= 't' THEN 'true'
+    WHEN host_is_superhost = 'f' THEN 'false'
+    ELSE host_is_superhost = "N/A"
+  END
+
+ --Finding the number of superhosts
+ SELECT
+  COUNT(CASE WHEN host_is_superhost = 'true' THEN id END) AS Superhost,
+  COUNT(CASE WHEN host_is_superhost = 'false' THEN id END) AS Regular
+FROM
+  listings
+  
+  --There are 1382 superhosts and 5612 regular hosts
+
+--Checking which neighbourhood has highest number of superhosts
+SELECT
+ neighbourhood,
+  COUNT(CASE WHEN host_is_superhost = 'true' THEN id END) AS Superhost,
+  COUNT(CASE WHEN host_is_superhost = 'false' THEN id END) AS Regular
+FROM
+  listings
+GROUP BY
+neighbourhood
+ORDER BY Superhost DESC
+
+--It is seen that North holland has the highest number of superhosts.
+
+--Checking if there is a correlation between superhosts and the price charged
+SELECT
+  AVG(CASE WHEN host_is_superhost = 'true' THEN CAST(price AS NUMERIC) END) AS superhost_avg_price,
+  avg(CASE WHEN host_is_superhost = 'false' THEN CAST(price AS NUMERIC) END) AS regular_avg_price
+FROM
+listings
+
+--194.8 Vs 227.67
+--It is seen that superhosts charge less than regular hosts
+
+SELECT neighbourhood,
+  AVG(CASE WHEN host_is_superhost = 'true' THEN CAST(price AS NUMERIC) END) AS superhost_avg_price,
+  avg(CASE WHEN host_is_superhost = 'false' THEN CAST(price AS NUMERIC) END) AS regular_avg_price
+FROM
+listings
+GROUP BY
+neighbourhood
+order by
+  superhost_avg_price desc
+
+  --In north holland, regular hosts charge more than superhosts.
+
+ --Checking the ratings of superhosts and regular hosts:-
+ SELECT
+  host_is_superhost,
+ AVG(review_scores_rating) AS avg_rating,
+  AVG(review_scores_accuracy) AS avg_rating_accuracy,
+  AVG(review_scores_cleanliness) AS avg_rating_cleanliness,
+  AVG(review_scores_checkin) AS avg_rating_checkin,
+  AVG(review_scores_communication) AS avg_rating_comm,
+  AVG(review_scores_location) AS avg_rating_location
+FROM
+  listings
+GROUP BY
+host_is_superhost
+
+--Checking if there is a relationship between instant bookable airbnbs and price
+
+SELECT DISTINCT(instant_bookable) FROM listings
+
+SELECT
+  AVG(CASE WHEN instant_bookable = 't' THEN CAST(price AS NUMERIC) * (30 - availability_30) END) as instantbook_potential,
+  AVG(CASE WHEN instant_bookable = 'f' THEN CAST(price AS NUMERIC) * (30 - availability_30) END) as regular_potential
+FROM
+  listings
+  --4660 vs 5761
+  --It is seen that average revenue potential of regular booking airbnbs are more than instant bookable bnbs
+
+  SELECT
+  AVG(CASE WHEN instant_bookable = 't' THEN CAST(price AS NUMERIC)END) AS instantbook_avg_price,
+  AVG(CASE WHEN instant_bookable = 'f' THEN CAST(price AS NUMERIC) END) AS regular_avg_price
+FROM
+  listings
+
+  ----Average  price is higher for regular bookings than instant bookings
+
+  --Checking if instant bookings attracts more reservations:-
+  SELECT
+  AVG(CASE WHEN instant_bookable = 't' THEN availability_30 END) AS instantbook_avail,
+  AVG(CASE WHEN instant_bookable = 'f' THEN availability_30 END) AS regular_avail
+FROM
+  listings
+
+  --Hosts with instant book enabled seems to be more available, which means they get less reservations
+  --It is seen that hosts are not charging more with the added convenience of instant booking.
+
+
+
